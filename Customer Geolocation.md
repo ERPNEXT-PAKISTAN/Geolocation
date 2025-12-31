@@ -681,6 +681,201 @@ async function sync_mobile_email_to_address_and_contact(frm) {
 
 
 
+## <img src="https://img.icons8.com/color/48/000000/javascript--v1.png" width="35"/> JavaScript Code (Client Script) For Sales Order
+
+<details>
+<summary><img src="https://img.icons8.com/color/48/000000/code-file.png" width="22"/> Copy JavaScript</summary>
+
+```javascript
+frappe.ui.form.on('Sales Order', {
+  refresh(frm) {
+    // Standard button
+    frm.add_custom_button(__('GPS Address'), async () => {
+      await set_shipping_from_customer_gps(frm);
+    });
+
+    // Light-blue Google button (always visible in header area)
+    inject_google_open_button(frm);
+  }
+});
+
+/* -------------------- UI: Light Blue Google button -------------------- */
+
+function inject_google_open_button(frm) {
+  if (frm.__google_btn_added) return;
+  frm.__google_btn_added = true;
+
+  const $btn = $(
+    `<button class="btn btn-sm btn-google-open" style="
+        background:#5bc0de; border-color:#46b8da; color:#fff;
+        margin-left:8px;">
+        Google Map
+     </button>`
+  );
+
+  $btn.on("click", async () => {
+    await open_shipping_location_google(frm);
+  });
+
+  // Put into page actions (top right area)
+  // Works on desktop; on mobile it still shows near top in most cases
+  frm.page.btn_secondary && frm.page.btn_secondary.after($btn);
+}
+
+/* -------------------- Parse display address rule -------------------- */
+
+function parse_display_address(display_name) {
+  if (!display_name) return null;
+
+  const parts = display_name.split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length < 5) {
+    return {
+      address_line1: display_name,
+      city: "Unknown",
+      state: "",
+      pincode: "00000",
+      country: "Pakistan"
+    };
+  }
+
+  const country = parts[parts.length - 1] || "Pakistan";
+  const pincode = parts[parts.length - 2] || "00000";
+  const state = parts[parts.length - 3] || "";
+  const city = parts[parts.length - 4] || "Unknown";
+  const address_line1 = parts.slice(0, parts.length - 4).join(", ").trim() || display_name;
+
+  return { address_line1, city, state, pincode, country };
+}
+
+/* -------------------- Core: Set shipping from Customer GPS -------------------- */
+
+async function set_shipping_from_customer_gps(frm) {
+  const customer = frm.doc.customer;
+  if (!customer) {
+    frappe.msgprint("Please select Customer first.");
+    return;
+  }
+
+  const r = await frappe.db.get_value(
+    "Customer",
+    customer,
+    ["customer_primary_address", "custom_current_geolocation_address", "customer_name"]
+  );
+
+  const primary_address = r.message?.customer_primary_address;
+  const gps_display_address = r.message?.custom_current_geolocation_address;
+  const customer_name = r.message?.customer_name || customer;
+
+  if (primary_address) {
+    await apply_address_to_sales_order(frm, primary_address);
+    frappe.show_alert({ message: "Shipping Address set from Customer Primary Address", indicator: "green" });
+    return;
+  }
+
+  if (!gps_display_address) {
+    frappe.msgprint("Customer has no GPS address saved. Open Customer → Fetch Geolocation first.");
+    return;
+  }
+
+  const parsed = parse_display_address(gps_display_address);
+
+  const new_address = {
+    doctype: "Address",
+    address_title: customer_name,
+    address_type: "Shipping",
+    address_line1: parsed.address_line1,
+    address_line2: "",
+    city: parsed.city,
+    state: parsed.state,
+    country: parsed.country,
+    pincode: parsed.pincode,
+    links: [{ link_doctype: "Customer", link_name: customer }]
+  };
+
+  const ins = await frappe.call({
+    method: "frappe.client.insert",
+    args: { doc: new_address }
+  });
+
+  const address_name = ins.message?.name;
+  if (!address_name) {
+    frappe.msgprint("Address created but name not returned. Check logs.");
+    return;
+  }
+
+  // Best effort: set Customer Primary Address
+  try {
+    await frappe.db.set_value("Customer", customer, "customer_primary_address", address_name);
+  } catch (e) {
+    console.warn("Could not set Customer Primary Address:", e);
+  }
+
+  await apply_address_to_sales_order(frm, address_name);
+  frappe.show_alert({ message: "Shipping Address created from Customer GPS and set on Sales Order", indicator: "green" });
+}
+
+/* -------------------- Apply address to Sales Order -------------------- */
+
+async function apply_address_to_sales_order(frm, address_name) {
+  await frm.set_value("shipping_address_name", address_name);
+  await frm.set_value("customer_address", address_name);
+
+  frm.refresh_fields();
+  frm.dirty();
+  await frm.save();
+}
+
+/* -------------------- Google: Open Shipping Location -------------------- */
+
+async function open_shipping_location_google(frm) {
+  // Prefer shipping_address_name; fallback to customer_address
+  const addr_name = frm.doc.shipping_address_name || frm.doc.customer_address;
+
+  if (!addr_name) {
+    frappe.msgprint("No Shipping Address set. Click 'Set Shipping Address from Customer GPS' first.");
+    return;
+  }
+
+  // Read address fields and make a query string
+  const r = await frappe.db.get_value(
+    "Address",
+    addr_name,
+    ["address_line1", "address_line2", "city", "state", "pincode", "country"]
+  );
+
+  const a = r.message || {};
+  const q = [
+    a.address_line1, a.address_line2, a.city, a.state, a.pincode, a.country
+  ].filter(Boolean).join(", ");
+
+  if (!q) {
+    frappe.msgprint("Shipping Address record is empty.");
+    return;
+  }
+
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  window.open(url, "_blank");
+}
+
+```
+</details>
+
+
+> **Note:**  
+> Copy and use the JavaScript snippet above.
+
+---
+
+
+
+
+
+
+
+
+
+---
+
 
 ## <img src="https://img.icons8.com/color/48/000000/python--v1.png" width="35"/> Python Server Script
 
