@@ -91,7 +91,7 @@
 
 
 
-## <img src="https://img.icons8.com/color/48/000000/javascript--v1.png" width="35"/> JavaScript Code (Client Script)
+## <img src="https://img.icons8.com/color/48/000000/javascript--v1.png" width="35"/> JavaScript (Client Script)
 
 <details>
 <summary><img src="https://img.icons8.com/color/48/000000/code-file.png" width="22"/> Copy JavaScript</summary>
@@ -674,14 +674,141 @@ async function sync_mobile_email_to_address_and_contact(frm) {
 
 
 > **Note:**  
-> Copy and use the JavaScript snippet above.
+> Client Script For Customer Doctype.
 
 ---
 
 
 
 
-## <img src="https://img.icons8.com/color/48/000000/javascript--v1.png" width="35"/> JavaScript Code (Client Script) For Sales Order
+
+
+
+
+
+
+
+
+
+## <img src="https://img.icons8.com/color/48/000000/python--v1.png" width="35"/> Python Server Script
+
+<details>
+<summary><img src="https://img.icons8.com/color/48/000000/code-file.png" width="22"/> Copy Python</summary>
+
+```python
+# Name: Customer Geolocation
+# Script Type: API
+# API Method: parse_map_url
+
+
+def to_float(x):
+    try:
+        return float(x)
+    except Exception:
+        return None
+
+def split_lat_lng(s):
+    if not s or "," not in s:
+        return None
+    parts = s.split(",", 1)
+    if len(parts) < 2:
+        return None
+    lat = to_float((parts[0] or "").strip())
+    lng = to_float((parts[1] or "").strip())
+    if lat is None or lng is None:
+        return None
+    return {"lat": lat, "lng": lng}
+
+def extract_from_place(url):
+    key = "/place/"
+    i = url.find(key)
+    if i < 0:
+        return None
+    s = url[i + len(key):]
+    for stop in ["/", "?", "&"]:
+        j = s.find(stop)
+        if j >= 0:
+            s = s[:j]
+            break
+    return split_lat_lng(s)
+
+def extract_from_at(url):
+    key = "/@"
+    i = url.find(key)
+    if i < 0:
+        return None
+    s = url[i + len(key):]
+    parts = s.split(",")
+    if len(parts) < 2:
+        return None
+    return split_lat_lng(parts[0].strip() + "," + parts[1].strip())
+
+def extract_from_q(url):
+    key = "q="
+    i = url.find(key)
+    if i < 0:
+        return None
+    s = url[i + len(key):]
+    j = s.find("&")
+    if j >= 0:
+        s = s[:j]
+    return split_lat_lng(s)
+
+def extract_from_3d4d(url):
+    i = url.find("!3d")
+    j = url.find("!4d")
+    if i < 0 or j < 0 or j < i:
+        return None
+
+    a = url[i + 3:j]
+    k = url.find("!", j + 3)
+    b = url[j + 3:] if k < 0 else url[j + 3:k]
+
+    lat = to_float((a or "").strip())
+    lng = to_float((b or "").strip())
+    if lat is None or lng is None:
+        return None
+    return {"lat": lat, "lng": lng}
+
+url = (frappe.form_dict.get("url") or "").strip()
+if not url:
+    frappe.throw("url is required")
+
+result = extract_from_place(url)
+if not result:
+    result = extract_from_at(url)
+if not result:
+    result = extract_from_q(url)
+if not result:
+    result = extract_from_3d4d(url)
+
+lat = None
+lng = None
+if result:
+    lat = result.get("lat")
+    lng = result.get("lng")
+
+frappe.response["message"] = {
+    "ok": True,
+    "final_url": url,
+    "lat": lat,
+    "lng": lng
+}
+
+```
+</details>
+
+> **Note:**  
+> Server Script for Customer Geolocation.
+
+---
+
+
+
+
+
+
+## <img src="https://img.icons8.com/color/48/000000/javascript--v1.png" width="35"/> JavaScript (Client Script) For Sales Order
 
 <details>
 <summary><img src="https://img.icons8.com/color/48/000000/code-file.png" width="22"/> Copy JavaScript</summary>
@@ -862,7 +989,7 @@ async function open_shipping_location_google(frm) {
 
 
 > **Note:**  
-> Copy and use the JavaScript snippet above.
+> Add Geolocation on Sales Order....
 
 ---
 
@@ -874,121 +1001,9 @@ async function open_shipping_location_google(frm) {
 
 
 
----
 
 
-## <img src="https://img.icons8.com/color/48/000000/python--v1.png" width="35"/> Python Server Script
 
-<details>
-<summary><img src="https://img.icons8.com/color/48/000000/code-file.png" width="22"/> Copy Python</summary>
-
-```python
-# Name: Customer Geolocation
-# Script Type: API
-# API Method: parse_map_url
-
-
-def to_float(x):
-    try:
-        return float(x)
-    except Exception:
-        return None
-
-def split_lat_lng(s):
-    if not s or "," not in s:
-        return None
-    parts = s.split(",", 1)
-    if len(parts) < 2:
-        return None
-    lat = to_float((parts[0] or "").strip())
-    lng = to_float((parts[1] or "").strip())
-    if lat is None or lng is None:
-        return None
-    return {"lat": lat, "lng": lng}
-
-def extract_from_place(url):
-    key = "/place/"
-    i = url.find(key)
-    if i < 0:
-        return None
-    s = url[i + len(key):]
-    for stop in ["/", "?", "&"]:
-        j = s.find(stop)
-        if j >= 0:
-            s = s[:j]
-            break
-    return split_lat_lng(s)
-
-def extract_from_at(url):
-    key = "/@"
-    i = url.find(key)
-    if i < 0:
-        return None
-    s = url[i + len(key):]
-    parts = s.split(",")
-    if len(parts) < 2:
-        return None
-    return split_lat_lng(parts[0].strip() + "," + parts[1].strip())
-
-def extract_from_q(url):
-    key = "q="
-    i = url.find(key)
-    if i < 0:
-        return None
-    s = url[i + len(key):]
-    j = s.find("&")
-    if j >= 0:
-        s = s[:j]
-    return split_lat_lng(s)
-
-def extract_from_3d4d(url):
-    i = url.find("!3d")
-    j = url.find("!4d")
-    if i < 0 or j < 0 or j < i:
-        return None
-
-    a = url[i + 3:j]
-    k = url.find("!", j + 3)
-    b = url[j + 3:] if k < 0 else url[j + 3:k]
-
-    lat = to_float((a or "").strip())
-    lng = to_float((b or "").strip())
-    if lat is None or lng is None:
-        return None
-    return {"lat": lat, "lng": lng}
-
-url = (frappe.form_dict.get("url") or "").strip()
-if not url:
-    frappe.throw("url is required")
-
-result = extract_from_place(url)
-if not result:
-    result = extract_from_at(url)
-if not result:
-    result = extract_from_q(url)
-if not result:
-    result = extract_from_3d4d(url)
-
-lat = None
-lng = None
-if result:
-    lat = result.get("lat")
-    lng = result.get("lng")
-
-frappe.response["message"] = {
-    "ok": True,
-    "final_url": url,
-    "lat": lat,
-    "lng": lng
-}
-
-```
-</details>
-
-> **Note:**  
-> Copy and Paste..............
-
----
 
 ##### Contact
 <p align="center">
