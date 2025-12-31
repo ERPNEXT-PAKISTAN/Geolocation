@@ -495,13 +495,179 @@ async function fetch_and_set_address(frm, lat, lng) {
  * Save Address / Save Contact placeholders
  * (Keep your existing logic if you already have it)
  ***********************/
+
+/***********************
+ * Save Address / Save Contact (restored)
+ ***********************/
+
+function parse_display_address(display_name) {
+  if (!display_name) return null;
+
+  const parts = display_name.split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length < 5) {
+    return {
+      address_line1: display_name,
+      city: "Unknown",
+      state: "",
+      pincode: "00000",
+      country: "Pakistan"
+    };
+  }
+
+  const country = parts[parts.length - 1] || "Pakistan";
+  const pincode = parts[parts.length - 2] || "00000";
+  const state = parts[parts.length - 3] || "";
+  const city = parts[parts.length - 4] || "Unknown";
+  const address_line1 = parts.slice(0, parts.length - 4).join(", ").trim() || display_name;
+
+  return { address_line1, city, state, pincode, country };
+}
+
 async function save_gps_address_to_customer_address(frm) {
-  frappe.msgprint("Save Address: Please paste your existing working function here if needed.");
+  const display_addr = frm.doc.custom_current_geolocation_address;
+  if (!display_addr) {
+    frappe.msgprint("No GPS address. Click Fetch first.");
+    return;
+  }
+
+  const parsed = frm.__geo_parts || parse_display_address(display_addr) || {};
+  const address_line1 = parsed.address_line1 || display_addr;
+  const city = parsed.city || "Unknown";
+  const state = parsed.state || "";
+  const country = parsed.country || "Pakistan";
+  const pincode = parsed.pincode || "00000";
+
+  const line2 = "";
+
+  // Update existing primary address
+  if (frm.doc.customer_primary_address) {
+    await frappe.call({
+      method: "frappe.client.set_value",
+      args: {
+        doctype: "Address",
+        name: frm.doc.customer_primary_address,
+        fieldname: {
+          address_title: frm.doc.customer_name || frm.doc.name,
+          address_line1: address_line1,
+          address_line2: line2,
+          city: city,
+          state: state,
+          country: country,
+          pincode: pincode
+        }
+      }
+    });
+    frappe.show_alert({ message: "Primary Address updated", indicator: "green" });
+    return;
+  }
+
+  // Create new Address (mandatory fields)
+  const new_address = {
+    doctype: "Address",
+    address_title: frm.doc.customer_name || frm.doc.name,
+    address_type: "Billing",
+    address_line1: address_line1,
+    address_line2: line2,
+    city: city,
+    state: state,
+    country: country,
+    pincode: pincode,
+    links: [{ link_doctype: "Customer", link_name: frm.doc.name }]
+  };
+
+  const r = await frappe.call({
+    method: "frappe.client.insert",
+    args: { doc: new_address }
+  });
+
+  const created_address_name = r.message?.name;
+  if (!created_address_name) {
+    frappe.msgprint("Address created but name not returned.");
+    return;
+  }
+
+  await frm.set_value("customer_primary_address", created_address_name);
+  frm.dirty();
+  await frm.save();
+
+  frappe.show_alert({ message: "New Address created + set Primary", indicator: "green" });
 }
 
 async function sync_mobile_email_to_address_and_contact(frm) {
-  frappe.msgprint("Save Contact: Please paste your existing working function here if needed.");
+  const mobile = ((frm.doc.custom_mobile || frm.doc.mobile_no || "") + "").trim();
+  const email = ((frm.doc.custom_email || frm.doc.email_id || "") + "").trim();
+
+  if (!frm.doc.name) return;
+
+  if (!mobile && !email) {
+    frappe.msgprint("Enter Mobile or Email first.");
+    return;
+  }
+
+  // Update Address.phone / Address.email_id if primary address exists
+  if (frm.doc.customer_primary_address) {
+    const upd = {};
+    if (mobile) upd.phone = mobile;
+    if (email) upd.email_id = email;
+
+    await frappe.call({
+      method: "frappe.client.set_value",
+      args: { doctype: "Address", name: frm.doc.customer_primary_address, fieldname: upd }
+    });
+  }
+
+  // Update/Create Contact (phone_nos child table)
+  let contact_name = frm.doc.customer_primary_contact;
+
+  if (!contact_name) {
+    const new_contact = {
+      doctype: "Contact",
+      first_name: frm.doc.customer_name || frm.doc.name,
+      links: [{ link_doctype: "Customer", link_name: frm.doc.name }]
+    };
+
+    if (mobile) {
+      new_contact.phone_nos = [{ phone: mobile, is_primary_phone: 1 }];
+    }
+
+    const ins = await frappe.call({
+      method: "frappe.client.insert",
+      args: { doc: new_contact }
+    });
+
+    contact_name = ins.message?.name;
+
+    if (contact_name) {
+      await frm.set_value("customer_primary_contact", contact_name);
+      frm.dirty();
+      await frm.save();
+    }
+  } else {
+    const r = await frappe.call({
+      method: "frappe.client.get",
+      args: { doctype: "Contact", name: contact_name }
+    });
+
+    const contact = r.message;
+    if (!contact) return frappe.msgprint("Could not load Primary Contact.");
+
+    if (mobile) {
+      contact.phone_nos = contact.phone_nos || [];
+      let row = contact.phone_nos.find(d => (d.phone || "").trim() === mobile);
+
+      if (!row) contact.phone_nos.push({ phone: mobile, is_primary_phone: 1 });
+
+      contact.phone_nos.forEach(d => {
+        d.is_primary_phone = ((d.phone || "").trim() === mobile) ? 1 : 0;
+      });
+    }
+
+    await frappe.call({ method: "frappe.client.save", args: { doc: contact } });
+  }
+
+  frappe.show_alert({ message: "Contact + Address updated", indicator: "green" });
 }
+
 
 ```
 </details>
