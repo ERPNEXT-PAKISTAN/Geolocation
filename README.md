@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/geolocation-banner.png" alt="Geolocation Map Banner" width="100%" />
+  <img src="https://raw.githubusercontent.com/<USERNAME>/<REPO>/main/assets/geolocation-banner.png" alt="Geolocation Map Banner" width="100%" />
 </p>
 
 <h1 align="center">Hi 👋, Welcome to Geolocation Map Navigation Integration</h1>
